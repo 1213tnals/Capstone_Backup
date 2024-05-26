@@ -99,6 +99,30 @@ for file in files:
 ## distorted 안에 database.db                                                 ##
 ###############################################################################
 
+#### ADDED ####
+### Bin to TXT - 생성한 바이너리 파일을 TXT 파일로 생성(이후에 DUSt3R에서 이 포맷에 맞춰서 입력이 되게끔 할 예정)
+### $ colmap model_converter --input_path data/test_0513/distorted/sparse/0 --output_path data/test_0513/distorted/sparse/0 --output_type TXT
+bin2txt_cmd = (colmap_command + " model_converter \
+    --input_path " + args.source_path + "/distorted/sparse/0 \
+    --output_path " + args.source_path + "/distorted/sparse/0 \
+    --output_type TXT")                                         # TXT로 변환하기 위한 코드
+exit_code = os.system(bin2txt_cmd)                              # 터미널에서 실행
+
+# 특정 파일에 있는 목록을 모두 불러옴
+bin_file_path = os.path.join(args.source_path, "distorted/sparse/0")
+files_in_directory = os.listdir(bin_file_path)
+# .bin 파일 필터링
+bin_files = [file for file in files_in_directory if file.endswith(".bin")]
+# .bin 파일 삭제
+for file in bin_files:
+    file_path = os.path.join(bin_file_path, file)
+    try:
+        os.remove(file_path)
+        print(f"Deleted: {file_path}")
+    except Exception as e:
+        print(f"Error deleting file {file_path}: {e}")
+
+
 if(args.resize):
     print("Copying and resizing...")
 
