@@ -43,7 +43,7 @@ class Scene:
         if os.path.exists(os.path.join(args.source_path, "sparse")):
             ##### sceneLoadTypeCallbacks["Colmap"] = dataset_readers.py의 readColmapSceneInfo() 함수. -> 모든 초기화된 데이터가 담긴 scene_info 데이터를 얻음
             # 즉, 처음 Scene 클래스를 통해서 객체가 초기화될 때, 카메라 정보들을 통해 초기 씬을 구성 및 scene_info에 저장
-            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval)                  ########## 가장 중요한 코드
+            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval)             ################### 가장 중요한 코드
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
             print("Found transforms_train.json file, assuming Blender data set!")
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval)

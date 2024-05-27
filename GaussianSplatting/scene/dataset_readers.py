@@ -135,10 +135,10 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):            # 이미지 
     ## cam_extrinsics : images[image_id] = Image(id=image_id, qvec=qvec, tvec=tvec, camera_id=camera_id, name=image_name, xys=xys, point3D_ids=point3D_ids)
     ## cam_intrinsics : cameras[camera_id] = Camera(id=camera_id, model=model_name, width=width, height=height, params=np.array(params))
     try:
-        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")               # 외부 파라미터: 5~6개 (회전 2~3개, 변환 3개)
-        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")              # 내부 파라미터: 9개 (초점 거리 2개, 주점 위치 2개, 왜곡 계수 5개)
-        cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)                     # colmap_loader.py의 read_extrinsics_binary에서 데이터를 불러옴
-        cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)                     # colmap_loader.py의 read_intrinsics_binary에서 데이터를 불러옴
+        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")              # 외부 파라미터: 5~6개 (회전 2~3개, 변환 3개)
+        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")             # 내부 파라미터: 9개 (초점 거리 2개, 주점 위치 2개, 왜곡 계수 5개)
+        cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)                    # colmap_loader.py의 read_extrinsics_binary에서 데이터를 불러옴
+        cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)                    # colmap_loader.py의 read_intrinsics_binary에서 데이터를 불러옴
         ##### 이진화 된 파일을 변환 #####
     except:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.txt")
@@ -149,7 +149,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):            # 이미지 
     ## 2. 카메라 파라미터들(1단계 결과)과 이미지를 함께 cam_info 라는 데이터로 결합
     reading_dir = "images" if images == None else images
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
-    cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)            # 이미지 이름순으로 정렬
+    cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)           # 이미지 이름순으로 정렬
 
     if eval:
         train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
@@ -165,11 +165,12 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):            # 이미지 
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    if not os.path.exists(ply_path):                     # ply 파일이 없다면 .bin으로 생성
+    # print(os.path.exists(ply_path))                   # ply 파일이 기본적으로는 없으므로 false로 나와서 아래 조건문이 들어갔었음 -> 내가 원하는 ply가 들어가도록 할 예정
+    if not os.path.exists(ply_path):                    # ply 파일이 없다면 sparse/0/point3D.txt 정보를 이용해서 포인트 클라우드를 생성
         print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
         try:
             xyz, rgb, _ = read_points3D_binary(bin_path)
-        except:
+        except:                                         # txt를 사용하므로 이 조건으로 들어감
             xyz, rgb, _ = read_points3D_text(txt_path)
         storePly(ply_path, xyz, rgb)    # 주어진 3D 포인트 클라우드 데이터(xyz 좌표 및 rgb 색상)를 PLY 파일 형식으로 저장
     try:
@@ -179,12 +180,12 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):            # 이미지 
 
     # 5. 포인트 클라우드(4단계 결과), 카메라 정보(2단계 결과), 노말데이터(3단계 결과)를 scene_info 라는 데이터로 결합 및 씬 데이터를 반환 ########################
     # 카메라에 대한 데이터 : uid, R, TFovY, FovX, image, image_path, image_name, width, height
-    scene_info = SceneInfo(point_cloud=pcd,
-                           train_cameras=train_cam_infos,
-                           test_cameras=test_cam_infos,
-                           nerf_normalization=nerf_normalization,
-                           ply_path=ply_path)
-    return scene_info
+    scene_info = SceneInfo(point_cloud=pcd,                                   # 176번째 줄에서 생성한 pcd를 인수로 사용
+                           train_cameras=train_cam_infos,                     # 155번째 줄에서 생성한 train_cam_infos를 사용
+                           test_cameras=test_cam_infos,                       # 156번째 줄에서 생성한 test_cam_infos를 사용
+                           nerf_normalization=nerf_normalization,             # 162번째 줄에서 생성한 nerf_normalization을 사용
+                           ply_path=ply_path)                                 # sparse/0/point3D.ply
+    return scene_info                   # train.py의 37번째 줄에서 scene 객체를 생성할 때 scene 정보를 반환함
 
 def readCamerasFromTransforms(path, transformsfile, white_background, extension=".png"):
     cam_infos = []
