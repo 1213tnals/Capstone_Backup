@@ -156,7 +156,7 @@ def _convert_scene_output_to_glb(outdir, imgs, pts3d, mask, focals, cams2world, 
 
 # For gradio viewer1
 #### _convert_scene_output_to_ply를 사용하여 초기 포인트 클라우드를 생성(_convert_scene_output_to_ply())
-def get_3D_model_from_scene(outdir, silent, scene, min_conf_thr=3, as_pointcloud=True, mask_sky=False,
+def get_3D_model_from_scene(outdir, silent, scene, min_conf_thr=3, as_pointcloud=True, mask_sky=False,      # 206번줄에서 scene을 정의
                             clean_depth=False, transparent_cams=True, cam_size=0.05):
     """
     extract 3D_model (glb file) from a reconstructed scene
@@ -257,8 +257,8 @@ def set_scenegraph_options(inputfiles, winsize, refid, scenegraph_type):
 # gradio를 사용한 뷰어부분
 #### get_3D_model_from_scene()를 작동하여 model_from_scene_fun를 저장 ####
 def main_demo(tmpdirname, model, device, image_size, server_name, server_port, silent=False):
-    recon_fun = functools.partial(get_reconstructed_scene, tmpdirname, model, device, silent, image_size)
-    model_from_scene_fun = functools.partial(get_3D_model_from_scene, tmpdirname, silent)
+    recon_fun = functools.partial(get_reconstructed_scene, tmpdirname, model, device, silent, image_size)    # 뷰어에서의 3D 씬
+    model_from_scene_fun = functools.partial(get_3D_model_from_scene, tmpdirname, silent)                    # 결과로 나오는 glb(->ply로 바꿀 예정)
     with gradio.Blocks(css=""".gradio-container {margin: 0 !important; min-width: 100%};""", title="DUSt3R Demo") as demo:
         # scene state is save so that you can change conf_thr, cam_size... without rerunning the inference
         scene = gradio.State(None)
@@ -286,11 +286,11 @@ def main_demo(tmpdirname, model, device, image_size, server_name, server_port, s
                 # adjust the camera size in the output pointcloud
                 cam_size = gradio.Slider(label="cam_size", value=0.05, minimum=0.001, maximum=0.1, step=0.001)
             with gradio.Row():
-                as_pointcloud = gradio.Checkbox(value=False, label="As pointcloud")
+                as_pointcloud = gradio.Checkbox(value=True, label="As pointcloud")
                 # two post process implemented
                 mask_sky = gradio.Checkbox(value=False, label="Mask sky")
                 clean_depth = gradio.Checkbox(value=True, label="Clean-up depthmaps")
-                transparent_cams = gradio.Checkbox(value=False, label="Transparent cameras")
+                transparent_cams = gradio.Checkbox(value=True, label="Transparent cameras")
 
             outmodel = gradio.Model3D()
             outgallery = gradio.Gallery(label='rgb,depth,confidence', columns=3, height="100%")
