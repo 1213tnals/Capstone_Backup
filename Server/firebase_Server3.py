@@ -1,0 +1,145 @@
+import firebase_admin
+from firebase_admin import credentials, db, storage
+import subprocess, time, os
+
+cred = credentials.Certificate('fir-study-e1c26-firebase-adminsdk-jpbew-f354f3515f.json')
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://fir-study-e1c26-default-rtdb.firebaseio.com/',
+    'storageBucket': 'fir-study-e1c26.appspot.com'
+})
+
+
+def download_images1():
+    bucket = storage.bucket()
+    blobs = bucket.list_blobs(prefix="Images/")  # Image 폴더 안의 모든 파일을 가져옴
+    image_count = 0
+    
+    for index, blob in enumerate(blobs):
+        file_extension = blob.name.split('.')[-1]  # 파일 이름에서 확장자 추출
+        destination_filename = f"../../InstantSplat/data/TEMP/images/image{index}.{file_extension}"
+        blob.download_to_filename(destination_filename)
+        print(f"Downloaded {blob.name} from Firebase Storage as {destination_filename}")
+        image_count += 1
+    
+    return image_count
+    
+
+def download_images2():
+    bucket = storage.bucket()
+    blobs = bucket.list_blobs(prefix="Images/")  # Image 폴더 안의 모든 파일을 가져옴
+    image_count = 0
+    
+    for index, blob in enumerate(blobs):
+        file_extension = blob.name.split('.')[-1]  # 파일 이름에서 확장자 추출
+        destination_filename = f"../../segment-anything-2/capstone/videos/TEST/input/{index}.{file_extension}"
+        blob.download_to_filename(destination_filename)
+        print(f"Downloaded {blob.name} from Firebase Storage as {destination_filename}")
+        image_count += 1
+    
+    return image_count
+
+# def download_images():
+#     bucket = storage.bucket()
+#     for i in range(1, 6):
+#         image_blob = bucket.blob(f"image{i}.jpg")
+#         image_blob.download_to_filename(f"../../gaussian-splatting/data/test2/input/image{i}.jpg")
+#         print("Download images from a Firebase Storage")
+
+
+def move_sam2_result():
+    # 현재 스크립트의 위치를 기준으로 경로 설정
+    source_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../segment-anything-2/capstone/videos/TEST/output/'))
+    dest_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../InstantSplat/data/TEMP/images'))
+    
+    # 목적지 디렉토리가 없으면 생성
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
+    
+    # source_dir의 모든 파일을 iterating
+    for file_name in os.listdir(source_dir):
+        source_file = os.path.join(source_dir, file_name)
+        dest_file = os.path.join(dest_dir, file_name)
+        
+        # 파일인지 확인하고 이동
+        if os.path.isfile(source_file):
+            os.rename(source_file, dest_file)
+            print(f"Moved: {source_file} -> {dest_file}")
+    
+
+	  
+def upload_point_cloud(image_count):
+    bucket = storage.bucket() # Storage 클라이언트 가져오기
+    
+    # 파일 이름 설정
+    storage_file_name = 'point_cloud_instantsplat.ply' # Firebase Storage에 저장될 파일 이름
+    local_file_path = f'../../InstantSplat/output/infer/capstone/test2/{image_count}_views_1000Iter_1xPoseLR/point_cloud/iteration_1000/point_cloud.ply'  # 업로드할 로컬 파일 경로 및 이름
+	
+	# 파일 업로드
+    blob = bucket.blob(storage_file_name)
+    blob.upload_from_filename(local_file_path)
+    print(f"Uploaded {local_file_path} to Firebase Storage as {storage_file_name}")
+
+
+def monitor_database():
+    ref_train = db.reference('/isTrain')
+    ref_made = db.reference('/isMade')
+    ref_mode = db.reference('/mode')
+    ref_x1 = db.reference('/ref_x1')
+    ref_y1 = db.reference('/ref_y1')
+    ref_x2 = db.reference('/ref_x2')
+    ref_y2 = db.reference('/ref_y2')
+    
+    while True:
+        is_train = ref_train.get()
+
+        if is_train == True:
+        	mode = ref_mode.get()
+        	
+        	if mode == 1:		# Space
+        		print("#### InstantSplat Operating - Space Making ####")
+             
+        		# preprocessing
+        		time.sleep(5)
+        		image_count = download_images1()
+        	
+        		# train + 'test' 라는 인수를 담아서 실행
+        		subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
+        	
+        		# 결과 업로드
+        		ref_train.set(False)  # is_train 값을 False로 변경
+        		upload_point_cloud(image_count)
+        		ref_made.set(True)  # is_train 값을 False로 변경
+        		print("#### Space Making Finished ####")
+        		
+        	elif mode == 2:	# Object
+        		print("#### SAM2 & InstantSplat Operating - Object Making ####")
+        		
+        		# preprocessing
+        		time.sleep(5)
+        		image_count = download_images2()
+        		
+        		# SAM2
+        		print("## ==== Process 1 - SAM2 ==== ##")
+        		subprocess.run(['./capstone/SAM2.sh'], cwd='../../segment-anything-2')
+        		print("## ==== Process 1 Done ==== ##")
+        		
+        		move_sam2_result()
+        		
+        		# InstantSplat
+        		print("## ==== Process 2 - InstantSplat ==== ##")
+        		subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
+        		print("## ==== Process 2 Done ==== ##")
+        	
+        		# 결과 업로드
+        		ref_train.set(False)  # is_train 값을 False로 변경
+        		# upload_point_cloud(image_count)
+        		ref_made.set(True)  # is_train 값을 False로 변경
+        		print("#### Object Making Finished ####")
+        	
+        else:
+        	time.sleep(2)  # 3초마다 Realtime Database를 확인
+        	print("Waiting Firebase Server--")
+
+
+if __name__ == "__main__":
+    monitor_database()
