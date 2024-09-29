@@ -36,56 +36,96 @@ def show_mask(mask, ax, obj_id=None, random_color=False):
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)
 
-def get_image_size(image_path):
-    with Image.open(image_path) as img:
-        return img.size
 
-def get_image_orientation(filepath):
-    """이미지의 EXIF 정보를 읽어 방향을 반환합니다."""
-    image = Image.open(filepath)
-    orientation = None
-    try:
-        exif = image._getexif()
-        if exif:
-            for tag, value in exif.items():
-                if ExifTags.TAGS.get(tag) == 'Orientation':
-                    orientation = value
-                    break
-    except (AttributeError, KeyError, IndexError):
-        pass
-    return orientation
+def show_points(coords, labels, ax, marker_size=200):
+    pos_points = coords[labels==1]
+    neg_points = coords[labels==0]
+    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
 
-def correct_image_orientation(image):
-    try:
-        # EXIF 데이터에서 Orientation 태그를 찾음
-        for orientation in ExifTags.TAGS.keys():
-            if ExifTags.TAGS[orientation] == 'Orientation':
-                break
-        exif = image._getexif()
 
-        if exif is not None:
-            orientation = exif.get(orientation, None)
-            # Orientation에 따라 이미지를 회전
-            if orientation == 3:
-                image = image.rotate(180, expand=True)
-            elif orientation == 6:
-                image = image.rotate(270, expand=True)
-            elif orientation == 8:
-                image = image.rotate(90, expand=True)
-    except (AttributeError, KeyError, IndexError):
-        # EXIF 데이터가 없거나 처리할 수 없을 때는 아무 작업도 하지 않음
-        pass
+# def show_box(box, ax):
+#     x0, y0 = box[0], box[1]
+#     w, h = box[2] - box[0], box[3] - box[1]
+#     ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0, 0, 0, 0), lw=2))
+
+
+def load_image_with_orientation(image_path):
+    image = Image.open(image_path)
+    original_size = image.size  # (width, height)
     
-    return image
+    # EXIF 데이터에서 방향 정보 가져오기
+    try:
+        exif = image._getexif()
+        if exif is not None:
+            orientation_key = [k for k, v in ExifTags.TAGS.items() if v == 'Orientation'][0]
+            orientation = exif.get(orientation_key)
+        else:
+            orientation = None
+    except (AttributeError, KeyError, TypeError):
+        orientation = None
+
+    rotation_angle = 0
+    # EXIF 데이터를 기반으로 이미지 회전
+    if orientation:
+        if orientation == 3:
+            image = image.rotate(180, expand=True)
+            rotation_angle = 180
+        elif orientation == 6:
+            image = image.rotate(270, expand=True)
+            rotation_angle = 270
+        elif orientation == 8:
+            image = image.rotate(90, expand=True)
+            rotation_angle = 90
+
+    rotated_size = image.size  # After rotation
+    return image, rotation_angle, original_size, rotated_size
+
+def rotate_normalized_points(points, rotation_angle):
+    # points: numpy array of shape (N, 2), values in [0, 1]
+    if rotation_angle == 0:
+        x_new = points[:, 0]
+        y_new = points[:, 1]
+    elif rotation_angle == 90:
+        # 90도 반시계 방향 회전
+        x_new = points[:, 1]
+        y_new = 1 - points[:, 0]
+    elif rotation_angle == 180:
+        # 180도 회전
+        x_new = 1 - points[:, 0]
+        y_new = 1 - points[:, 1]
+    elif rotation_angle == 270:
+        # 270도 반시계 방향 회전
+        # x_new = 1 - points[:, 1]
+        x_new = points[:, 0]
+        y_new = points[:, 1]
+    else:
+        raise ValueError(f"Unsupported rotation angle: {rotation_angle}")
+    return np.stack([x_new, y_new], axis=1)
+
+
+def rotate_mask(mask, angle):
+    # 마스크 배열의 차원이 3차원이라면, 2차원으로 변환
+    mask = np.squeeze(mask)  # 불필요한 차원 제거
+
+    # 마스크를 PIL 이미지로 변환
+    mask_image = Image.fromarray((mask.astype(np.uint8) * 255))  # 마스크를 0~1에서 0~255 범위로 변환
+    mask_image = mask_image.convert("L")  # 그레이스케일 이미지로 변환
+
+    # 마스크를 이미지와 동일한 각도로 회전
+    rotated_mask_image = mask_image.rotate(angle, expand=True)
+    rotated_mask = np.array(rotated_mask_image) / 255  # 다시 0~1 범위로 변환
+    return rotated_mask
+
 
 def process_images_in_folder(input_folder, output_folder, point1, point2):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    
+
     # 이미지 프레임 이름 목록 가져오기
     frame_names = [
         p for p in os.listdir(input_folder)
-        if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG"]
+        if os.path.splitext(p)[-1].lower() in [".jpg", ".jpeg", ".png"]
     ]
     frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
 
@@ -93,23 +133,25 @@ def process_images_in_folder(input_folder, output_folder, point1, point2):
     inference_state = predictor.init_state(video_path=input_folder)
     predictor.reset_state(inference_state)
 
-    # 2. Two Clicks
+    # 첫 번째 프레임의 원본 이미지 크기 및 회전 각도 가져오기
+    first_frame_path = os.path.join(input_folder, frame_names[0])
+    frame_image, rotation_angle, original_size, rotated_size = load_image_with_orientation(first_frame_path)
+
+    # 입력된 포인트 (정규화된 좌표)
+    points_normalized = np.array([point1, point2], dtype=np.float32)
+    labels = np.array([1, 1], np.int32)
+
+    # Predictor에 전달할 포인트 (원본 이미지의 픽셀 좌표)
+    points_pixel = points_normalized * np.array(original_size)
+
+    # Predictor에 포인트 추가
     ann_frame_idx = 0
     ann_obj_id = 1
-
-    ###### 이미지 비율로 처리 ######
-    first_frame_path = os.path.join(input_folder, frame_names[0])
-    image_size = get_image_size(first_frame_path)
-    point1 = [point1[0] * image_size[0], point1[1]*image_size[1]]
-    point2 = [point2[0] * image_size[0], point2[1]*image_size[1]]
-
-    points = np.array([point1, point2], dtype=np.float32)
-    labels = np.array([1, 1], np.int32)
     _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
         inference_state=inference_state,
         frame_idx=ann_frame_idx,
         obj_id=ann_obj_id,
-        points=points,
+        points=points_pixel,
         labels=labels,
     )
 
@@ -122,30 +164,49 @@ def process_images_in_folder(input_folder, output_folder, point1, point2):
         }
 
     # 프레임에 대해 시각화 및 마스크 저장
-    vis_frame_stride = 1
-    plt.close("all")
-    for out_frame_idx in range(0, len(frame_names), vis_frame_stride):
+    for out_frame_idx in range(len(frame_names)):
         if out_frame_idx in video_segments:
             frame_path = os.path.join(input_folder, frame_names[out_frame_idx])
-            frame_image = Image.open(frame_path)
-            orientation = get_image_orientation(frame_path)
-            frame_image = np.array(frame_image)
-            
-            # plt.figure(figsize=(6, 4))
-            # plt.title(f"frame {out_frame_idx}")
-            # plt.imshow(frame_image)
 
+            # 이미지 로드 및 회전 각도 가져오기
+            frame_image, rotation_angle, original_size, rotated_size = load_image_with_orientation(frame_path)
+            frame_image_np = np.array(frame_image)
+
+            # 포인트를 회전 각도에 따라 변환 (정규화된 좌표)
+            rotated_points_normalized = rotate_normalized_points(points_normalized, rotation_angle)
+
+            # 회전된 이미지의 크기를 사용하여 픽셀 좌표로 변환
+            rotated_points_pixel = rotated_points_normalized * np.array(rotated_size)
+
+            # 마스크 회전
             masks = []
             for out_obj_id, out_mask in video_segments[out_frame_idx].items():
-                show_mask(out_mask, plt.gca(), obj_id=out_obj_id)
-                masks.append(out_mask)
+                rotated_mask = rotate_mask(out_mask, rotation_angle)
+                masks.append(rotated_mask)
 
-            save_masks(frame_image, masks, output_folder, frame_names[out_frame_idx], orientation)
+            # 시각화
+            # plt.figure(figsize=(6, 4))
+            # plt.title(f"frame {out_frame_idx}")
+            # plt.imshow(frame_image_np)
+
+            # 포인트 시각화
+            show_points(rotated_points_pixel, labels, plt.gca(), marker_size=200)
+
+            # 마스크 시각화
+            # for mask in masks:
+            #     show_mask(mask, plt.gca(), obj_id=out_obj_id)
+	    #
+            # plt.show()
+
+            # 마스크 저장
+            save_masks(frame_image_np, masks, output_folder, frame_names[out_frame_idx])
 
 
-def save_masks(image, out_masks, output_folder, original_filename, orientation):
+def save_masks(image, out_masks, output_folder, original_filename):
     # 마스크 처리
-    black_background = np.zeros_like(image)
+    # black_background = np.zeros_like(image)
+    # 투명 배경을 적용하기 위해 RGBA로 이미지 변환
+    rgba_image = np.dstack((image, np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255))  # 알파 채널 추가
 
     # Iterate through each mask and save
     for i, out_mask in enumerate(out_masks):
@@ -153,23 +214,15 @@ def save_masks(image, out_masks, output_folder, original_filename, orientation):
         if len(out_mask.shape) == 3 and out_mask.shape[0] == 1:
             out_mask = out_mask.squeeze(0)
 
-        # 마스크를 이미지와 동일한 shape로 확장
-        mask_expanded = out_mask[:, :, np.newaxis]  # (2268, 4032, 1)
-
         # 마스크를 사용하여 이미지와 배경을 결합
-        masked_image = np.where(mask_expanded, image, black_background)
+        mask_expanded = out_mask[:, :, np.newaxis]  # (height, width, 1)
+        #masked_image = np.where(mask_expanded, image, black_background)
+        # 알파 채널을 사용해 배경을 투명하게 처리
+        masked_image = np.where(mask_expanded, rgba_image, [0, 0, 0, 0])
 
         # PIL 이미지로 변환
-        masked_image_pil = Image.fromarray(masked_image.astype(np.uint8))
-
-        # EXIF 방향 정보를 적용
-        if orientation:
-            if orientation == 3:
-                masked_image_pil = masked_image_pil.rotate(180, expand=True)
-            elif orientation == 6:
-                masked_image_pil = masked_image_pil.rotate(270, expand=True)
-            elif orientation == 8:
-                masked_image_pil = masked_image_pil.rotate(90, expand=True)
+        #masked_image_pil = Image.fromarray(masked_image.astype(np.uint8))
+        masked_image_pil = Image.fromarray(masked_image.astype(np.uint8), 'RGBA')
 
         # 파일 이름 수정 및 저장
         base_filename, ext = os.path.splitext(original_filename)
@@ -194,11 +247,13 @@ ref_x1 = db.reference('/ref_x1')
 ref_y1 = db.reference('/ref_y1')
 ref_x2 = db.reference('/ref_x2')
 ref_y2 = db.reference('/ref_y2')
+ref_t = db.reference('/ref_t')
 
 x1 = ref_x1.get()
 y1 = ref_y1.get()
 x2 = ref_x2.get()
 y2 = ref_y2.get()
+start_time = ref_t.get()
 
 sam2_checkpoint = "../checkpoints/sam2_hiera_large.pt"
 model_cfg = "sam2_hiera_l.yaml"
@@ -208,7 +263,9 @@ input_folder = "./videos/TEST/input"
 output_folder = "./videos/TEST/output"
 point1 = [x1,y1]
 point2 = [x2,y2]
+print("point1: ", point1)
+print("point2: ", point2)
 # point1 = [0.7,0.25]
 # point2 = [0.5,0.25]
 process_images_in_folder(input_folder, output_folder, point1, point2)
-print("## Backgroun Remove Done ##\n")
+print("## Background Remove Done ##\n")
