@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 # 진행률 리스트 정의
-stages = ["점 구름 읽기", "법선 계산", "Poisson 알고리즘으로 삼각형 메쉬 생성", "PLY 파일로 저장"]
+stages = ["Pointcloud Load", "Calculate Normals", "Making Mesh by Using Poisson", "Mesh Smoothing", "Saving PLY"]
 
 # tqdm으로 단계별 진행률 표시
 with tqdm(total=len(stages), desc="전체 진행률", unit="단계") as pbar:
@@ -31,16 +31,16 @@ with tqdm(total=len(stages), desc="전체 진행률", unit="단계") as pbar:
     # 스무딩 적용
     mesh = mesh.filter_smooth_simple(number_of_iterations=1)
     # 메쉬 간소화 (삼각형 개수를 절반으로 줄임)
-    mesh = mesh.simplify_quadric_decimation(target_number_of_triangles=len(mesh.triangles) // 2)
+    mesh = mesh.simplify_quadric_decimation(target_number_of_triangles=len(mesh.triangles) // 1)
     pbar.update(1)  # 진행률 업데이트
     
     # 6. 구멍 메우기
-    print("구멍 메우기 중...")
-    mesh.fill_holes()
-    print("구멍 메우기 완료.")
+    # print("구멍 메우기 중...")
+    # mesh.fill_holes()
+    # print("구멍 메우기 완료.")
 
     # 7. 메쉬 파일로 저장 (PLY 형식)
-    o3d.io.write_triangle_mesh("output_filtered_mesh_poisson.ply", mesh)
+    o3d.io.write_triangle_mesh("output_filtered_mesh_poisson.fbx", mesh)
     print("PLY 파일로 저장 완료!")
     pbar.update(1)  # 진행률 업데이트
 
