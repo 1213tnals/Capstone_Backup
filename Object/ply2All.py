@@ -106,6 +106,6 @@ nodes.remove(vertex_color_node)
 # FBX 파일로 내보내기
 bpy.ops.export_scene.fbx(filepath=output_fbx, embed_textures=False)
 
-print(f"FBX 파일이 내보내졌습니다: {output_fbx}")
-print(f"텍스처 이미지가 생성되었습니다: {output_texture}")
+print(f"FBX export done: {output_fbx}")
+print(f"Texture export done: {output_texture}")
 

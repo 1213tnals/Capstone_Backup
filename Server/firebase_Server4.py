@@ -167,6 +167,23 @@ def upload_point_cloud_object(image_count, obj_count):
     print(f"Uploaded {local_file_path} to Firebase Storage as {storage_file_name}")
     
 
+def upload_object(obj_count):
+    bucket = storage.bucket() # Storage 클라이언트 가져오기
+    
+    # 파일 이름 설정
+    storage_file_name = f'Objects/obj{obj_count}.fbx' # Firebase Storage에 저장될 파일 이름
+    local_file_path = f'./Result/output.fbx'  # 업로드할 로컬 파일 경로 및 이름
+    storage_file_name2 = f'Objects/texture{obj_count}.png' # Firebase Storage에 저장될 파일 이름
+    local_file_path2 = f'./Result/output_texture.png'  # 업로드할 로컬 파일 경로 및 이름
+	
+    # 파일 업로드
+    blob = bucket.blob(storage_file_name)
+    blob.upload_from_filename(local_file_path)
+    blob2 = bucket.blob(storage_file_name2)
+    blob2.upload_from_filename(local_file_path2)
+    print(f"Uploaded {local_file_path} to Firebase Storage as {storage_file_name}")
+    print(f"Uploaded {local_file_path2} to Firebase Storage as {storage_file_name2}")
+
 
 def monitor_database():
     ref_train = db.reference('/isTrain')
@@ -229,12 +246,20 @@ def monitor_database():
         		print("\n## ==== Process 2 - InstantSplat ==== ##")
         		subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
         		print("## ==== Process 2 Done ==== ##\n")
+        		
+        		# PLY to FBX
+        		print("\n## ==== Process 3 - PLY to FBX ==== ##")
+        		subprocess.run(['./ply2fbx.sh'])
+        		print("## ==== Process 3 Done ==== ##\n")
         	
         		# 결과 업로드
+        		print("\n## ==== Process 4 - Upload to Firebase ==== ##")
         		ref_train.set(False)  # is_train 값을 False로 변경
         		obj_count += 1
-        		upload_point_cloud_object(image_count, obj_count)
+        		# upload_point_cloud_object(image_count, obj_count)
+        		upload_object(obj_count)
         		ref_made.set(True)  # is_made 값을 False로 변경
+        		print("## ==== Process 4 Done ==== ##\n")
         		print("\n#### Object Making Finished ####\n")
         	
         else:
