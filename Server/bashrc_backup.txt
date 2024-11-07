@@ -9,3 +9,9 @@ alias instantSplat_play='./scripts/run_train_infer.sh'
 alias bgrm='conda activate bgrm && cd ~/Projects/rembg'
 alias sam2='conda activate sam2 && cd ~/Projects/segment-anything-2/notebooks/ && jupyter notebook'
 alias sugar='conda activate sugar && cd ~/Projects/SuGaR/ && export PATH="$HOME/.nvm/versions/node/v20.16.0/bin:$PATH"'
+alias convert='blender --background --python ply2All.py -- output_filtered_mesh_poisson.ply output.fbx output_texture.png'
+
+export NVM_DIR="$HOME/.nvm"
+export PATH="$HOME/.nvm/versions/node/v20.16.0/bin:$PATH"		# nodejs 추가된 경로
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

@@ -3,7 +3,7 @@ import firebase_admin
 from firebase_admin import credentials, db, storage
 import subprocess, time, os
 from PIL import Image
-os.environ["MKL_THREADING_LAYER"] = "GNU"
+os.environ["MKL_THREADING_LAYER"] = "GNU"	# 현재 환경에서 이거 없으면 에러나고 있음
 
 cred = credentials.Certificate('fir-study-e1c26-firebase-adminsdk-jpbew-f354f3515f.json')
 firebase_admin.initialize_app(cred, {
@@ -39,27 +39,32 @@ def download_video():
             print(f"Warning: {blob.name} has no file extension, skipping...")
             continue
 
-        destination_filename = f"../../segment-anything-2/capstone/videos/TEST/raw_video/{index}.{file_extension}"
+        destination_filename = f"../../segment-anything-2/capstone/videos/TEST/raw_video/input_video.{file_extension}"
         
         # 파일 다운로드
         blob.download_to_filename(destination_filename)
-        print(f"Downloaded {blob.name} from Firebase Storage as {destination_filename}")
+        print(f"Downloaded {blob.name} from Firebase Storage as {destination_filename}.{file_extension}")
         
-        # 동영상 파일일 경우 FFmpeg 명령어 실행
-        if file_extension == "mp4":
-            ffmpeg_command = [
-                "ffmpeg", "-i", destination_filename, "-r", "1", "-q:v", "2", 
-                "-start_number", "0", "../../segment-anything-2/capstone/videos/TEST/input/%05d.jpg"
-            ]
-            subprocess.run(ffmpeg_command)
-            print(f"FFmpeg command executed: {' '.join(ffmpeg_command)}")
+    return file_extension
+        
+        
+def process_video(file_extension):			# 정밀화 작업 필요!!!!!
+	destination_filename = f"../../segment-anything-2/capstone/videos/TEST/raw_video/input_video.{file_extension}"
+    # 동영상 파일일 경우 FFmpeg 명령어 실행
+	if file_extension == "mp4":
+		ffmpeg_command = [
+        "ffmpeg", "-i", destination_filename, "-r", "1", "-q:v", "2", 
+        "-start_number", "0", "../../segment-anything-2/capstone/videos/TEST/input/%05d.jpg"
+        ]
+		subprocess.run(ffmpeg_command)
+		print(f"FFmpeg command executed: {' '.join(ffmpeg_command)}")
     
     # 경로에 있는 이미지 파일 수 세기
-    image_dir = "../../segment-anything-2/capstone/videos/TEST/input"
-    image_files = [f for f in os.listdir(image_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]  # 이미지 확장자 필터링
-    image_count = len(image_files)
+	image_dir = "../../segment-anything-2/capstone/videos/TEST/input"
+	image_files = [f for f in os.listdir(image_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]  # 이미지 확장자 필터링
+	image_count = len(image_files)
     
-    return image_count
+	return image_count
     
 
 # def download_images():
@@ -186,86 +191,108 @@ def upload_object(obj_count):
 
 
 def monitor_database():
-    ref_train = db.reference('/isTrain')
-    ref_made = db.reference('/isMade')
-    ref_mode = db.reference('/mode')
-    ref_x1 = db.reference('/ref_x1')
-    ref_y1 = db.reference('/ref_y1')
-    ref_x2 = db.reference('/ref_x2')
-    ref_y2 = db.reference('/ref_y2')
-    ref_t = db.reference('/ref_t')
+	ref_inputs = db.reference('/inputs')
+	inputs = ref_inputs.get()
     
-    obj_count = 0
+	ref_train = db.reference('/isTrain')
+	ref_made = db.reference('/isMade')
+	ref_mode = db.reference('/mode')
     
-    while True:
-        is_train = ref_train.get()
+	processing_ref_x1 = db.reference('/ref_x1')
+	processing_ref_y1 = db.reference('/ref_y1')
+	processing_ref_x2 = db.reference('/ref_x2')
+	processing_ref_y2 = db.reference('/ref_y2')
+	processing_ref_t = db.reference('/ref_t')
+    
+	while True:
+		is_train = ref_train.get()
 
-        if is_train == True:
-        	mode = ref_mode.get()
+		if is_train == True:
+			input_count = len(inputs)				# 입력받은 입력 값들 집합의 갯수
+			obj_count = 0
+			print(f"I found {input_count} inputs")
+        
+			mode = ref_mode.get()
         	
-        	if mode == 1:		# Space
-        		print("#### InstantSplat Operating - Space Making ####")
+			if mode == 1:		# Space
+				print("#### InstantSplat Operating - Space Making ####")
              
-        		# preprocessing
-        		time.sleep(5)
-        		image_count = download_images1()
+				# preprocessing
+				time.sleep(5)
+				image_count = download_images1()
         	
-        		# train + 'test' 라는 인수를 담아서 실행
-        		subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
+				# train + 'test' 라는 인수를 담아서 실행
+				subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
         	
-        		# 결과 업로드
-        		ref_train.set(False)  # is_train 값을 False로 변경
-        		upload_point_cloud_space(image_count)
-        		ref_made.set(True)  # is_train 값을 False로 변경
-        		print("#### Space Making Finished ####")
+				# 결과 업로드
+				ref_train.set(False)  # is_train 값을 False로 변경
+				upload_point_cloud_space(image_count)
+				ref_made.set(True)  # is_train 값을 False로 변경
+				print("#### Space Making Finished ####")
         		
-        	elif mode == 2:	# Object
-        		print("\n#### SAM2 & InstantSplat Operating - Object Making ####\n")
+			elif mode == 2:	# Object
+				print("\n#### SAM2 & InstantSplat Operating - Object Making ####\n")
         		
-        		# preprocessing 1
-        		time.sleep(5)
-        		print("\n--- Donwload Video ----\n")
-        		image_count = download_video()
-        		print("\n--- Collecting Object Images ----\n")
-        		image_count -= delete_video(ref_t.get())		# ref_t를 참조하여 이미지 삭제
-        		print(f"Founded Image Count = {image_count}")
+				# download video
+				time.sleep(5)
+				print("\n--- Donwload Video ----\n")
+				file_extension = download_video()
         		
-        		# SAM2
-        		print("\n## ==== Process 1 - SAM2 ==== ##")
-        		subprocess.run(['./capstone/SAM2.sh'], cwd='../../segment-anything-2')
-        		print("## ==== Process 1 Done ==== ##\n")
+				for input_key, input_value in inputs.items():		# inputs 자식의 수 만큼 반복
+					ref_x1 = input_value.get('ref_x1')
+					ref_y1 = input_value.get('ref_y1')
+					ref_x2 = input_value.get('ref_x2')
+					ref_y2 = input_value.get('ref_y2')
+					ref_t = input_value.get('ref_t')
+					processing_ref_x1.set(ref_x1)					# SAM2에서 참조할 값
+					processing_ref_y1.set(ref_y1)
+					processing_ref_x2.set(ref_x2)
+					processing_ref_y2.set(ref_y2)
+					processing_ref_t.set(ref_t)
+        			
+					# preprocessing 1 - 입력받은 시간부터의 이미지를 처리
+					print("\n--- Collecting Object Images ----\n")
+					image_count = process_video(file_extension)
+					image_count -= delete_video(ref_t)				# ref_t를 참조하여 이미지 삭제
+					print(f"Founded Image Count = {image_count}")
         		
-        		# preprocessing 2
-        		print("\n--- Extracting Only Object Images ----\n")
-        		image_count -= delete_transparent_images()
-        		print("\n--- Moving Images for Instantsplat ----\n")
-        		move_sam2_result()
-        		#time.sleep(5)
+					# SAM2
+					print("\n## ==== Process 1 - SAM2 ==== ##")
+					subprocess.run(['./capstone/SAM2.sh'], cwd='../../segment-anything-2')
+					print("## ==== Process 1 Done ==== ##\n")
         		
-        		# InstantSplat
-        		print("\n## ==== Process 2 - InstantSplat ==== ##")
-        		subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
-        		print("## ==== Process 2 Done ==== ##\n")
+					# preprocessing 2 - 객체가 인식 안된 것 삭제
+					print("\n--- Extracting Only Object Images ----\n")
+					image_count -= delete_transparent_images()
+					print("\n--- Moving Images for Instantsplat ----\n")
+					move_sam2_result()
+					#time.sleep(5)
         		
-        		# PLY to FBX
-        		print("\n## ==== Process 3 - PLY to FBX ==== ##")
-        		subprocess.run(['./ply2fbx.sh'])
-        		print("## ==== Process 3 Done ==== ##\n")
+					# InstantSplat
+					print("\n## ==== Process 2 - InstantSplat ==== ##")
+					subprocess.run(['./scripts/run_train_infer_capstone.sh'], cwd='../../InstantSplat')
+					print("## ==== Process 2 Done ==== ##\n")
+        		
+					# PLY to FBX
+					print("\n## ==== Process 3 - PLY to FBX ==== ##")
+					subprocess.run(['./ply2fbx.sh'])
+					print("## ==== Process 3 Done ==== ##\n")
         	
-        		# 결과 업로드
-        		print("\n## ==== Process 4 - Upload to Firebase ==== ##")
-        		ref_train.set(False)  # is_train 값을 False로 변경
-        		obj_count += 1
-        		# upload_point_cloud_object(image_count, obj_count)
-        		upload_object(obj_count)
-        		ref_made.set(True)  # is_made 값을 False로 변경
-        		print("## ==== Process 4 Done ==== ##\n")
-        		print("\n#### Object Making Finished ####\n")
+					# 결과 업로드
+					print("\n## ==== Process 4 - Upload to Firebase ==== ##")
+					obj_count += 1
+					# upload_point_cloud_object(image_count, obj_count)
+					upload_object(obj_count)
+					print("## ==== Process 4 Done ==== ##\n")
+        		
+				ref_train.set(False)	# is_train 값을 False로 변경
+				ref_made.set(True)		# is_made 값을 False로 변경
+				print("\n#### Object Making Finished ####\n")
         	
-        else:
-        	time.sleep(2)  # 3초마다 Realtime Database를 확인
-        	print("Waiting Firebase Server--")
+		else:
+			time.sleep(2)  # 3초마다 Realtime Database를 확인
+			print("Waiting Firebase Server--")
 
 
 if __name__ == "__main__":
-    monitor_database()
+	monitor_database()

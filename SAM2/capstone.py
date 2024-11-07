@@ -200,6 +200,7 @@ def process_images_in_folder(input_folder, output_folder, point1, point2):
 
             # 마스크 저장
             save_masks(frame_image_np, masks, output_folder, frame_names[out_frame_idx])
+            os.remove(frame_path)
 
 
 def save_masks(image, out_masks, output_folder, original_filename):
