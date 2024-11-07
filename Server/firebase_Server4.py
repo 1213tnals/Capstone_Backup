@@ -192,10 +192,9 @@ def upload_object(obj_count):
 
 def monitor_database():
 	ref_inputs = db.reference('/inputs')
-	inputs = ref_inputs.get()
-    
 	ref_train = db.reference('/isTrain')
 	ref_made = db.reference('/isMade')
+	ref_select = db.reference('/isSelect')
 	ref_mode = db.reference('/mode')
     
 	processing_ref_x1 = db.reference('/ref_x1')
@@ -208,6 +207,7 @@ def monitor_database():
 		is_train = ref_train.get()
 
 		if is_train == True:
+			inputs = ref_inputs.get()
 			input_count = len(inputs)				# 입력받은 입력 값들 집합의 갯수
 			obj_count = 0
 			print(f"I found {input_count} inputs")
@@ -285,12 +285,14 @@ def monitor_database():
 					upload_object(obj_count)
 					print("## ==== Process 4 Done ==== ##\n")
         		
-				ref_train.set(False)	# is_train 값을 False로 변경
+        			ref_select.set(False)		# is_select 값을 False로 변경
+				ref_train.set(False)		# is_train 값을 False로 변경
 				ref_made.set(True)		# is_made 값을 False로 변경
+				# ref_inputs.set(None)		# 전체 과정 추가 작동용
 				print("\n#### Object Making Finished ####\n")
         	
 		else:
-			time.sleep(2)  # 3초마다 Realtime Database를 확인
+			time.sleep(3)  # 3초마다 Realtime Database를 확인
 			print("Waiting Firebase Server--")
 
 
