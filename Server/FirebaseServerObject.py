@@ -29,7 +29,7 @@ def download_images1():
 
 def download_video_object():
 	bucket = storage.bucket()
-	blobs = bucket.list_blobs(prefix="Videos_Object/")  # Video 폴더 안의 모든 파일을 가져옴
+	blobs = bucket.list_blobs(prefix="Video_Object/")  # Video 폴더 안의 모든 파일을 가져옴
 	image_count = 0
 	file_extension = 'mp4'
 	
