@@ -27,25 +27,31 @@ def download_images1():
     return image_count
     
 
-def download_video():
-    bucket = storage.bucket()
-    blobs = bucket.list_blobs(prefix="Videos/")  # Video 폴더 안의 모든 파일을 가져옴
-    image_count = 0
-    
-    for index, blob in enumerate(blobs):
-        file_name = os.path.basename(blob.name)  # 파일 이름만 추출 (경로 제외)
-        file_extension = file_name.split('.')[-1] if '.' in file_name else ''  # 확장자가 있을 때만 추출
-        if not file_extension:  # 확장자가 없을 경우 오류 방지
-            print(f"Warning: {blob.name} has no file extension, skipping...")
-            continue
-
-        destination_filename = f"../../segment-anything-2/capstone/videos/TEST/raw_video/input_video.{file_extension}"
+def download_video_object():
+	bucket = storage.bucket()
+	blobs = bucket.list_blobs(prefix="Videos/")  # Video 폴더 안의 모든 파일을 가져옴
+	image_count = 0
+	
+	for index, blob in enumerate(blobs):
+		file_name = os.path.basename(blob.name)  # 파일 이름만 추출 (경로 제외)
+		file_extension = file_name.split('.')[-1] if '.' in file_name else ''  # 확장자가 있을 때만 추출
+		if not file_extension:  # 확장자가 없을 경우 오류 방지
+			print(f"Warning: {blob.name} has no file extension, skipping...")
+			continue
+    	
+		file_name = os.path.basename(blob.name)
+		file_extension = file_name.split('.')[-1] if '.' in file_name else 'mp4'
+		destination_filename = f"../../segment-anything-2/capstone/videos/TEST/raw_video/input_video.{file_extension}"
         
         # 파일 다운로드
-        blob.download_to_filename(destination_filename)
-        print(f"Downloaded {blob.name} from Firebase Storage as {destination_filename}.{file_extension}")
+		try:
+			print(f"Downloading {blob.name} to {destination_filename}.{file_extension}")
+			blob.download_to_filename(destination_filename)
+			print(f"Successfully downloaded {blob.name}.")
+		except Exception as e:
+			print(f"Failed to download {blob.name}: {e}")
         
-    return file_extension
+	return file_extension
         
         
 def process_video(file_extension):			# 정밀화 작업 필요!!!!!
@@ -219,7 +225,7 @@ def monitor_database():
 			# download video
 			time.sleep(5)
 			print("\n--- Donwload Video ----\n")
-			file_extension = download_video()
+			file_extension = download_video_object()
         		
 			for input_key, input_value in inputs.items():		# inputs 자식의 수 만큼 반복
 				ref_x1 = input_value.get('ref_x1')
