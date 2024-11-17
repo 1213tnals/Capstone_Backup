@@ -266,7 +266,9 @@ def monitor_database():
 		is_space_train = ref_modeSpace.get()
 
 		if (is_train == False) and (is_space_train == True):					# 공간 학습 플래그 ON, 학습 중 X일 때
+			ref_isTrain.set(True)	    # isTrain 상태를 false로 변경
 			print("\n#### Gaussian Splatting Operating - Space Making ####\n")
+             
              
 			# download video
 			time.sleep(5)

@@ -217,6 +217,7 @@ def monitor_database():
 		is_obejct_train = ref_modeObject.get()
 
 		if (is_train == False) and (is_obejct_train == True):			# 오브젝트 학습 플래그 ON, 학습 중 X일 때
+			ref_isTrain.set(True)	    # isTrain 상태를 false로 변경
 			print("\n#### SAM2 & InstantSplat Operating - Object Making ####\n")
 			
 			inputs = ref_inputs.get()
