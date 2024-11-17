@@ -56,13 +56,13 @@ def download_video_space():
 
         # 파일 다운로드
         try:
-            print(f"Downloading {blob.name} to {destination_filename}...")
+            print(f"Downloading {blob.name} to {destination_filename}.{file_extension}")
             blob.download_to_filename(destination_filename)
             print(f"Successfully downloaded {blob.name}.")
         except Exception as e:
             print(f"Failed to download {blob.name}: {e}")
 
-    return "Download complete!"
+    return file_extension
 
     
 
@@ -256,21 +256,22 @@ def upload_object(obj_count):
 
 def monitor_database():
 	ref_modeSpace = db.reference('/modeSpace')
-	ref_madeSpace = db.reference('/isMade')
+	ref_isMadeSpace = db.reference('/isMadeSpace')
+	ref_isTrain = db.reference('/isTrain')
 	
 	point_cloud_dir = './result_space/point_cloud.ply'
     
 	while True:
+		is_train = ref_isTrain.get()
 		is_space_train = ref_modeSpace.get()
 
-		if is_space_train == True:					# 공간 학습 플래그 ON
+		if (is_train == False) and (is_space_train == True):					# 공간 학습 플래그 ON, 학습 중 X일 때
 			print("\n#### Gaussian Splatting Operating - Space Making ####\n")
              
 			# download video
 			time.sleep(5)
 			print("\n--- Donwload Video ----\n")
 			file_extension = download_video_space()				# 가우시안 입력 데이터 폴더에 다운로드
-			file_extension = 'mp4'
 			
 			# preprocessing
 			process_video_space(file_extension)					# 동영상에서 이미지들로 변환
@@ -284,8 +285,9 @@ def monitor_database():
 			upload_point_cloud_space()
 			
 			# postprocess
-			ref_modeSpace.set(False)  # Mode 상태를 false로 변경
-			ref_madeSpace.set(True)   # Made 상태를  true로 변경
+			ref_modeSpace.set(False)    # Mode 상태를 false로 변경
+			ref_isMadeSpace.set(True)   # Made 상태를  true로 변경
+			ref_isTrain.set(False)	    # isTrain 상태를 false로 변경
 			os.remove(point_cloud_dir)
 			print("\n#### Space Making Finished ####\n")
         	

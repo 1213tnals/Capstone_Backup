@@ -199,7 +199,8 @@ def upload_object(obj_count):
 def monitor_database():
 	ref_inputs = db.reference('/inputs')
 	ref_modeObject = db.reference('/modeObject')
-	ref_madeObject = db.reference('/madeObject')
+	ref_isMadeObject = db.reference('/isMadeObject')
+	ref_isTrain = db.reference('/isTrain')
     
 	processing_ref_x1 = db.reference('/ref_x1')
 	processing_ref_y1 = db.reference('/ref_y1')
@@ -212,9 +213,10 @@ def monitor_database():
 	png_dir = './result_object/output_texture.png'
     
 	while True:
+		is_train = ref_isTrain.get()
 		is_obejct_train = ref_modeObject.get()
 
-		if is_obejct_train == True:
+		if (is_train == False) and (is_obejct_train == True):			# 오브젝트 학습 플래그 ON, 학습 중 X일 때
 			print("\n#### SAM2 & InstantSplat Operating - Object Making ####\n")
 			
 			inputs = ref_inputs.get()
@@ -274,8 +276,9 @@ def monitor_database():
 				print("## ==== Process 4 Done ==== ##\n")
         		
         		# postprocess
-			ref_modeObject.set(False)	# Mode 상태를 false로 변경
-			ref_madeObject.set(True)    # Made 상태를  true로 변경
+			ref_modeObject.set(False)	  # Mode 상태를 false로 변경
+			ref_isMadeObject.set(True)    # Made 상태를  true로 변경
+			ref_isTrain.set(False)	      # isTrain 상태를 false로 변경
 			os.remove(raw_video_dir)
 			os.remove(fbx_dir)
 			os.remove(png_dir)
