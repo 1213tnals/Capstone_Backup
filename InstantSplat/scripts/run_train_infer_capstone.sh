@@ -52,7 +52,7 @@ for DATASET in "${DATASETS[@]}"; do
         DEST_PATH="${SOURCE_PATH}/images"
 
         RESULT_DIR="./output/infer/${DATASET}/${SCENE}/${N_VIEW}_views_${gs_train_iter}Iter_${pose_lr}PoseLR/input.ply"     # 나중에 결과물로 바꿀 것
-        DEST_PATH2="../Capstone/Firebase_Ubuntu/Result/"
+        DEST_PATH2="../Capstone/Firebase_Ubuntu/result_object/"
 
         # 대상 디렉토리 생성 (존재하지 않을 경우)
         if [ ! -d "$DEST_PATH" ]; then
